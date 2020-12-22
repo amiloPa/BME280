@@ -17,6 +17,7 @@ C_DEPS :=
 SUBDIRS := \
 CMSIS/core \
 StdPeriph_Driver/src \
+src/BME280 \
 src/COMMON \
 src/I2C \
 src/SPI \

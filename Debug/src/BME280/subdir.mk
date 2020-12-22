@@ -4,17 +4,17 @@
 
 # Add inputs and outputs from these tool invocations to the build variables 
 C_SRCS += \
-../src/I2C/I2C.c 
+../src/BME280/BME280.c 
 
 OBJS += \
-./src/I2C/I2C.o 
+./src/BME280/BME280.o 
 
 C_DEPS += \
-./src/I2C/I2C.d 
+./src/BME280/BME280.d 
 
 
 # Each subdirectory must supply rules for building sources it contributes
-src/I2C/%.o: ../src/I2C/%.c
+src/BME280/%.o: ../src/BME280/%.c
 	@echo 'Building file: $<'
 	@echo 'Invoking: MCU GCC Compiler'
 	@echo $(PWD)

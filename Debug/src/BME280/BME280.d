@@ -1,4 +1,4 @@
-src/I2C/I2C.o: ../src/I2C/I2C.c ../src/I2C/I2C.h \
+src/BME280/BME280.o: ../src/BME280/BME280.c ../src/BME280/BME280.h \
  E:/STM32_ARM/MY_LIBRARIES/BME280/CMSIS/device/stm32f10x.h \
  E:/STM32_ARM/MY_LIBRARIES/BME280/CMSIS/core/core_cm3.h \
  E:/STM32_ARM/MY_LIBRARIES/BME280/CMSIS/device/system_stm32f10x.h \
@@ -26,12 +26,11 @@ src/I2C/I2C.o: ../src/I2C/I2C.c ../src/I2C/I2C.h \
  E:/STM32_ARM/MY_LIBRARIES/BME280/StdPeriph_Driver/inc/stm32f10x_usart.h \
  E:/STM32_ARM/MY_LIBRARIES/BME280/StdPeriph_Driver/inc/stm32f10x_wwdg.h \
  E:/STM32_ARM/MY_LIBRARIES/BME280/StdPeriph_Driver/inc/misc.h \
- ../src/I2C/../BME280/BME280.h ../src/I2C/../BME280/../SPI/SPI.h \
- ../src/I2C/../BME280/../SPI/../BME280/BME280.h \
- ../src/I2C/../BME280/../I2C/I2C.h \
- ../src/I2C/../BME280/../COMMON/common_var.h
+ ../src/BME280/../SPI/SPI.h ../src/BME280/../SPI/../BME280/BME280.h \
+ ../src/BME280/../I2C/I2C.h ../src/BME280/../I2C/../BME280/BME280.h \
+ ../src/BME280/../COMMON/common_var.h
 
-../src/I2C/I2C.h:
+../src/BME280/BME280.h:
 
 E:/STM32_ARM/MY_LIBRARIES/BME280/CMSIS/device/stm32f10x.h:
 
@@ -87,12 +86,12 @@ E:/STM32_ARM/MY_LIBRARIES/BME280/StdPeriph_Driver/inc/stm32f10x_wwdg.h:
 
 E:/STM32_ARM/MY_LIBRARIES/BME280/StdPeriph_Driver/inc/misc.h:
 
-../src/I2C/../BME280/BME280.h:
+../src/BME280/../SPI/SPI.h:
 
-../src/I2C/../BME280/../SPI/SPI.h:
+../src/BME280/../SPI/../BME280/BME280.h:
 
-../src/I2C/../BME280/../SPI/../BME280/BME280.h:
+../src/BME280/../I2C/I2C.h:
 
-../src/I2C/../BME280/../I2C/I2C.h:
+../src/BME280/../I2C/../BME280/BME280.h:
 
-../src/I2C/../BME280/../COMMON/common_var.h:
+../src/BME280/../COMMON/common_var.h:

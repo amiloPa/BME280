@@ -8,13 +8,13 @@
 
 #include "SPI.h"
 
-#if BMP280_SPI
+#if BME280_SPI
 	void SPI_Conf(void);
 	void SELECT (void);
 	void DESELECT (void);
 #endif
 
-#if BMP280_SPI
+#if BME280_SPI
 
 	/****************************************************************************/
 	/*      Configuration of SPI protocol	        							*/
@@ -66,7 +66,7 @@
 	/****************************************************************************/
 	/*      Select slave	        											*/
 	/****************************************************************************/
-#if BMP280_SPI
+#if BME280_SPI
 	void SELECT (void) 		// CS in low state
 	{
 		GPIO_ResetBits(GPIOA, GPIO_Pin_0);
@@ -76,7 +76,7 @@
 	/****************************************************************************/
 	/*      Deelect slave	        											*/
 	/****************************************************************************/
-#if BMP280_SPI
+#if BME280_SPI
 	void DESELECT (void) 	// CS in high state
 	{
 		GPIO_SetBits(GPIOA, GPIO_Pin_0);
@@ -86,7 +86,7 @@
 	/****************************************************************************/
 	/*      Send a few data by SPI        										*/
 	/****************************************************************************/
-#if BMP280_SPI
+#if BME280_SPI
 	void SPI_SendData (uint8_t address, uint8_t *Data, uint8_t size)
 	{
 		const uint8_t register_mask = 0x7F;
@@ -114,7 +114,7 @@
 	/****************************************************************************/
 	/*      Receiving a few data from external device by SPI      				*/
 	/****************************************************************************/
-#if BMP280_SPI
+#if BME280_SPI
 	void SPI_ReceiveData (uint8_t address, uint8_t *Data, uint8_t size)
 	{
 		SELECT();

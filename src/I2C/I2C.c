@@ -1,6 +1,6 @@
 #include "I2C.h"
 
-#if BMP280_I2C
+#if BME280_I2C
 	void I2C_Conf(uint16_t SCK_speed)
 	{
 		GPIO_InitTypeDef GPIOInit;
@@ -36,7 +36,7 @@
 	}
 #endif
 
-#if BMP280_I2C
+#if BME280_I2C
 	//Ustawienie adresu pamiêci
 	void I2C_ADDRES(uint8_t SLA, uint32_t addr)
 	{
@@ -56,7 +56,7 @@
 	}
 #endif
 
-#if BMP280_I2C
+#if BME280_I2C
 	//Odczyt z pamiêci
 	void I2C_READ(uint8_t SLA, uint32_t addr,  int size, void* data)
 	{
@@ -96,7 +96,7 @@
 #endif
 
 
-#if BMP280_I2C
+#if BME280_I2C
 	//Zapis do pamiêci
 	void I2C_WRITE(uint8_t SLA, uint32_t addr, int size, const void* data)
 	{

@@ -12,7 +12,7 @@
 #include "stm32f10x.h"
 #include "UART/UART.h"
 #include "I2C/I2C.h"
-//#include "BMP280/BMP280.h"
+#include "BME280/BME280.h"
 #include "COMMON/common_var.h"
 #include "SPI/SPI.h"
 
@@ -34,11 +34,21 @@ volatile uint8_t flag = 1;
 int main(void)
 {
 
+	uint8_t result_BME_conf;
+
 	RCC_Conf();
 	SysTick_Conf();
 	GPIO_Conf();
 	UART_Conf(UART_BAUD);
 	NVIC_Conf();
+
+	I2C_Conf(400);
+
+	do
+	{
+		result_BME_conf = BME280_Conf(&conf_BME280, &bmp);
+	}
+	while(result_BME_conf == 3);
 
 	while(1)
 	{

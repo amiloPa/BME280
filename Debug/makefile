@@ -13,6 +13,7 @@ RM := rm -rf
 -include src/SPI/subdir.mk
 -include src/I2C/subdir.mk
 -include src/COMMON/subdir.mk
+-include src/BME280/subdir.mk
 -include src/subdir.mk
 -include StdPeriph_Driver/src/subdir.mk
 -include CMSIS/core/subdir.mk

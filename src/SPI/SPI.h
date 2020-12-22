@@ -9,9 +9,9 @@
 #define SPI_H_
 
 #include "stm32f10x.h"
-//#include "../BMP280/BMP280.h"
+#include "../BME280/BME280.h"
 
-#if BMP280_SPI
+#if BME280_SPI
 	void SPI_Conf(void);
 	void SELECT (void);
 	void DESELECT (void);

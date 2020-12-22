@@ -22,6 +22,7 @@
 "StdPeriph_Driver/src/stm32f10x_tim.o"
 "StdPeriph_Driver/src/stm32f10x_usart.o"
 "StdPeriph_Driver/src/stm32f10x_wwdg.o"
+"src/BME280/BME280.o"
 "src/COMMON/common_var.o"
 "src/I2C/I2C.o"
 "src/SPI/SPI.o"
