@@ -42,30 +42,18 @@
 #define BME280_oversampling_x16		5	// Oversampling x16
 
 // --------------------------------------------------------- //
-//soft reset ->  reset[7:0] ->	If the value 0x60 is written to the register,
-//								the device is reset using the complete power-on-reset procedure
-#define BME280_SOFTWARE_RESET 0x60
-
-// --------------------------------------------------------- //
-// Mode -> mode[1:0] -> addres register 0xF4 bits: 0,1
-#define BME280_SLEEPMODE		0
-#define BME280_FORCEDMODE		1
-#define BME280_NORMALMODE		3
-
-// --------------------------------------------------------- //
-//Status registers -> addres register 0xF4:
-//		measuring[0] - bit 3
-//		in_update[0] - bit 0
-#define BMP280_MEASURING_STATUS 0x8
-#define BMP280_IM_UPDATE_STATUS 0x1
-
-// --------------------------------------------------------- //
 // IIR filter ->  filter[2:0]  -> addres register 0xF5 bits: 2, 3, 4
 #define BME280_FILTER_OFF	0	// Filter OFF				-> 1 sample to calculate
 #define BME280_FILTER_X2 	1	// Filter coefficient 2		-> 2 samples to calculate
 #define BME280_FILTER_X4 	2	// Filter coefficient 4		-> 5 samples to calculate
 #define BME280_FILTER_X8	3	// Filter coefficient 8		-> 11 samples to calculate
 #define BME280_FILTER_X16 	4	// Filter coefficient 16	-> 22 samples to calculate
+
+// --------------------------------------------------------- //
+// Mode -> mode[1:0] -> addres register 0xF4 bits: 0,1
+#define BME280_SLEEPMODE		0
+#define BME280_FORCEDMODE		1
+#define BME280_NORMALMODE		3
 
 // --------------------------------------------------------- //
 // t_standby time ->  t_sb[2:0] -> addres register 0xF5 bits: 5, 6, 7
@@ -79,20 +67,53 @@
 #define BME280_STANDBY_MS_20	7
 
 // --------------------------------------------------------- //
-//typedef enum {T_lower_limit = 1, T_over_limit = 2, P_lower_limit = 3, P_over_limit = 4 } ERR_BOUNDARIES;
+//soft reset ->  reset[7:0] ->	If the value 0x60 is written to the register,
+//								the device is reset using the complete power-on-reset procedure
+#define BME280_SOFTWARE_RESET 0x60
+
+// --------------------------------------------------------- //
+// definisions of minimum and maximum rav values for temperature and pressure
+#define BME280_ST_ADC_T_MIN	(int32_t)0x00000
+#define BME280_ST_ADC_T_MAX (int32_t)0xFFFF0
+#define BME280_ST_ADC_P_MIN (int32_t)0x00000
+#define BME280_ST_ADC_P_MAX (int32_t)0xFFFF0
+
+// --------------------------------------------------------- //
+//Status registers -> addres register 0xF4:
+//		measuring[0] - bit 3
+//		in_update[0] - bit 0
+#define BMP280_MEASURING_STATUS 0x8
+#define BMP280_IM_UPDATE_STATUS 0x1
+
+// --------------------------------------------------------- //
+#define SIZE_OF_TCOEF_UNION 33
+#define SIZE_OF_PT_UNION 24			//pressure and temperature union
+
+// --------------------------------------------------------- //
+// calculation of average temperature
+#define CALCULATION_AVERAGE_TEMP 1
+#define No_OF_SAMPLES 10
+
+// --------------------------------------------------------- //
+// 3-wire SPI interface -> spi3w_en[0]  -> addres register 0xF5 bits: 0
+#if BME280_SPI
+#define BME280_SPI_3_WIRE	1
+#endif
+
+
+// --------------------------------------------------------- //
+typedef enum {T_lower_limit = 1, T_over_limit = 2, P_lower_limit = 3, P_over_limit = 4 } ERR_BOUNDARIES;
 typedef enum {calib_reg = 1, config_reg = 2, both = 3}ERR_CONF;
 //typedef enum {im_update = 1, measuring= 2} STATUS;
 
 
-// --------------------------------------------------------- //
-#define SIZE_OF_TCOEF_UNION 33//36
 
 // --------------------------------------------------------- //
 typedef union {
 	uint8_t bt[3];
 	struct {
 		uint8_t osrs_h:3;		// Enabling/disabling the humidity and oversampling humidity
-		uint8_t reserved1:5;		// reserved bits
+		uint8_t reserved1:5;	// reserved bits
 		uint8_t mode:2;			// Measurement modes (Sleep/Forced/Normal mode)
 		uint8_t	osrs_p:3;		// Enabling/disabling the measurement and oversampling pressure
 		uint8_t	osrs_t:3;		// Enabling/disabling the temperature measurement and oversampling temperature
@@ -109,7 +130,7 @@ extern CONF conf_BME280;
 // --------------------------------------------------------- //
 typedef union {
 	uint8_t  bt[SIZE_OF_TCOEF_UNION];
-//	uint16_t bt2[(SIZE_OF_TCOEF_UNION + 1)/2];
+	uint16_t bt2[SIZE_OF_PT_UNION/2];
 
 	struct {
 		uint16_t dig_T1; 	//0x88 - 0x89 -> [ 0, 1] - index of bt table
@@ -145,10 +166,12 @@ typedef struct {
 	uint8_t im_update_staus ;	// status of im update sensor
 	int32_t adc_T;				// raw value of temperature
 	uint32_t adc_P;				// raw value of pressure
+	uint32_t adc_H;				// raw value of humidity
 	uint8_t err_conf;			// in configurations registers is some error
 	uint8_t compensate_status;	// set "1" if division by zero
 	uint8_t err_boundaries_T;	// if raw value of temperature is lower or over limits
 	uint8_t err_boundaries_P;	// if raw value of pressure is lower or over limits
+	uint8_t err_boundaries_H;	// if raw value of humidity is lower or over limits
 
 
 	// ----- temperature -----
@@ -178,9 +201,26 @@ typedef struct {
 #if USE_STRING
 	char pressure2str[5];		// pressure as string
 #endif
-} TBMP;
 
-extern TBMP bmp;
+//-----------------------------------------------------------------------
+	// ----- humidity -----
+	int32_t humidity;	// x 0,1 degree C7.6
+	int8_t 	h1;				// before comma
+	uint8_t h2;				// after comma
+
+//#if CALCULATION_AVERAGE_TEMP
+//	int8_t avearage_cel;
+//	uint8_t avearage_fract;
+//	int16_t smaples_of_temp[No_OF_SAMPLES];
+//#endif
+
+#if USE_STRING
+	char humi2str[6];		// humidity as string
+#endif
+
+} BME280;
+
+extern BME280 bmp;
 
 
 
@@ -195,7 +235,7 @@ extern TBMP bmp;
 
 
 // --------------------------------------------------------- //
-uint8_t BME280_Conf (CONF *sensor, TBMP *bmp);
-uint8_t BME280_ReadTPH(TBMP *bmp);
+uint8_t BME280_Conf (CONF *sensor, BME280 *bmp);
+uint8_t BME280_ReadTPH(BME280 *bmp);
 
 #endif /* BME280_BME280_H_ */
