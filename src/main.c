@@ -42,7 +42,13 @@ int main(void)
 	UART_Conf(UART_BAUD);
 	NVIC_Conf();
 
+#if BME280_I2C
 	I2C_Conf(400);
+#endif
+
+#if BME280_SPI
+	SPI_Conf();
+#endif
 
 	do
 	{
@@ -52,7 +58,12 @@ int main(void)
 
 	while(1)
 	{
+		if(flag)
+		{
+			flag = 0;
+			BME280_ReadTPH(&bmp);
 
+		}
 	}
 }
 

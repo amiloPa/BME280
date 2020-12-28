@@ -72,11 +72,10 @@
 #define BME280_SOFTWARE_RESET 0x60
 
 // --------------------------------------------------------- //
-// definisions of minimum and maximum rav values for temperature and pressure
-#define BME280_ST_ADC_T_MIN	(int32_t)0x00000
-#define BME280_ST_ADC_T_MAX (int32_t)0xFFFF0
-#define BME280_ST_ADC_P_MIN (int32_t)0x00000
-#define BME280_ST_ADC_P_MAX (int32_t)0xFFFF0
+// definisions of maximum rav values for temperature and pressure and humidity
+#define BME280_ST_ADC_MAX_T_P (int32_t)0x80000
+#define BME280_ST_ADC_MAX_H    (int32_t)0x8000
+
 
 // --------------------------------------------------------- //
 //Status registers -> addres register 0xF4:
@@ -90,8 +89,9 @@
 #define SIZE_OF_PT_UNION 24			//pressure and temperature union
 
 // --------------------------------------------------------- //
-// calculation of average temperature
+// calculation of average values of temperature and humidity
 #define CALCULATION_AVERAGE_TEMP 1
+#define CALCULATION_AVERAGE_HUMIDITY 1
 #define No_OF_SAMPLES 10
 
 // --------------------------------------------------------- //
@@ -102,7 +102,7 @@
 
 
 // --------------------------------------------------------- //
-typedef enum {T_lower_limit = 1, T_over_limit = 2, P_lower_limit = 3, P_over_limit = 4 } ERR_BOUNDARIES;
+typedef enum {Over_limit = 1} ERR_BOUNDARIES;
 typedef enum {calib_reg = 1, config_reg = 2, both = 3}ERR_CONF;
 //typedef enum {im_update = 1, measuring= 2} STATUS;
 
@@ -133,26 +133,26 @@ typedef union {
 	uint16_t bt2[SIZE_OF_PT_UNION/2];
 
 	struct {
-		uint16_t dig_T1; 	//0x88 - 0x89 -> [ 0, 1] - index of bt table
-		int16_t  dig_T2;	//0x8A - 0x8B -> [ 2, 3] - index of bt table
-		int16_t  dig_T3;	//0x8C - 0x8D -> [ 4, 5] - index of bt table
-		uint16_t dig_P1;	//0x8E - 0x8F -> [ 6, 7] - index of bt table
-		int16_t  dig_P2;	//0x90 - 0x91 -> [ 8, 9] - index of bt table
-		int16_t  dig_P3;	//0x92 - 0x93 -> [10,11] - index of bt table
-		int16_t  dig_P4;	//0x94 - 0x95 -> [12,13] - index of bt table
-		int16_t  dig_P5;	//0x96 - 0x97 -> [14,15] - index of bt table
-		int16_t  dig_P6;	//0x98 - 0x99 -> [16,17] - index of bt table
-		int16_t  dig_P7;	//0x9A - 0x9B -> [18,19] - index of bt table
-		int16_t  dig_P8;	//0x9C - 0x9D -> [20,21] - index of bt table
-		int16_t  dig_P9;	//0x9E - 0x9F -> [22,23] - index of bt table
+		uint16_t dig_T1; 	//0x88 - 0x89 		-> [ 0, 1] - index of bt table
+		int16_t  dig_T2;	//0x8A - 0x8B 		-> [ 2, 3] - index of bt table
+		int16_t  dig_T3;	//0x8C - 0x8D 		-> [ 4, 5] - index of bt table
+		uint16_t dig_P1;	//0x8E - 0x8F 		-> [ 6, 7] - index of bt table
+		int16_t  dig_P2;	//0x90 - 0x91 		-> [ 8, 9] - index of bt table
+		int16_t  dig_P3;	//0x92 - 0x93		-> [10,11] - index of bt table
+		int16_t  dig_P4;	//0x94 - 0x95 		-> [12,13] - index of bt table
+		int16_t  dig_P5;	//0x96 - 0x97 		-> [14,15] - index of bt table
+		int16_t  dig_P6;	//0x98 - 0x99 		-> [16,17] - index of bt table
+		int16_t  dig_P7;	//0x9A - 0x9B 		-> [18,19] - index of bt table
+		int16_t  dig_P8;	//0x9C - 0x9D 		-> [20,21] - index of bt table
+		int16_t  dig_P9;	//0x9E - 0x9F 		-> [22,23] - index of bt table
 		//-------------------------------
-		uint8_t  dig_H1;	//0xA1		  ->    [24] - index of bt table
+		uint8_t  dig_H1;	//0xA1		  		->    [24] - index of bt table
 		//-------------------------------
-		int16_t  dig_H2;	//0xE1 - 0xE2 -> [25,26] - index of bt table
-		uint8_t  dig_H3;	//0xE3		  ->    [27] - index of bt table
-		int16_t  dig_H4;	//0xE4 - 0xE5 -> [28,29] - index of bt table
-		int16_t  dig_H5;	//0xE6 - 0xE7 -> [30,31] - index of bt table
-		int8_t   dig_H6;	//0xE8		  ->    [32] - index of bt table
+		int16_t  dig_H2;	//0xE1 - 0xE2 		-> [25,26] - index of bt table
+		uint8_t  dig_H3;	//0xE3		  		->    [27] - index of bt table
+		int16_t  dig_H4;	//0xE4 - 0xE5[3:0] 	-> [28,29] - index of bt table
+		int16_t  dig_H5;	//0xE5[7:4] - 0xE6 	-> [30,31] - index of bt table
+		int8_t   dig_H6;	//0xE7		 		->    [32] - index of bt table
 
 
 	};
@@ -169,19 +169,19 @@ typedef struct {
 	uint32_t adc_H;				// raw value of humidity
 	uint8_t err_conf;			// in configurations registers is some error
 	uint8_t compensate_status;	// set "1" if division by zero
-	uint8_t err_boundaries_T;	// if raw value of temperature is lower or over limits
-	uint8_t err_boundaries_P;	// if raw value of pressure is lower or over limits
-	uint8_t err_boundaries_H;	// if raw value of humidity is lower or over limits
+	uint8_t err_boundaries_T;	// if raw value of temperature is over limits
+	uint8_t err_boundaries_P;	// if raw value of pressure is over limits
+	uint8_t err_boundaries_H;	// if raw value of humidity is over limits
 
 
 	// ----- temperature -----
-	int32_t temperature;	// x 0,1 degree C7.6
+	int32_t temperature;	// x 0,01 degree
 	int8_t 	t1;				// before comma
 	uint8_t t2;				// after comma
 
 #if CALCULATION_AVERAGE_TEMP
-	int8_t avearage_cel;
-	uint8_t avearage_fract;
+	int8_t avearage_temp_cel;
+	uint8_t avearage_temp_fract;
 	int16_t smaples_of_temp[No_OF_SAMPLES];
 #endif
 
@@ -190,32 +190,32 @@ typedef struct {
 #endif
 
 	// ----- pressure -----
-	uint32_t 	preasure;		// calue of calculated pressure
-	int16_t 	p1;				// before comma
-	//uint8_t 	p2;				// after comma
+	uint32_t 	preasure;		// value of calculated pressure
+	int32_t 	p1;				// before comma
+	//int32_t 	p2;				// after comma
 
 	// ----- sea pressure -----
 	uint32_t sea_pressure_redu;
 
 
 #if USE_STRING
-	char pressure2str[5];		// pressure as string
+	char pressure2str[7];		// pressure as string
 #endif
 
 //-----------------------------------------------------------------------
 	// ----- humidity -----
-	int32_t humidity;	// x 0,1 degree C7.6
+	int32_t humidity;		// value of calculated humidity (x 0,01 %)
 	int8_t 	h1;				// before comma
 	uint8_t h2;				// after comma
 
-//#if CALCULATION_AVERAGE_TEMP
-//	int8_t avearage_cel;
-//	uint8_t avearage_fract;
-//	int16_t smaples_of_temp[No_OF_SAMPLES];
-//#endif
+#if CALCULATION_AVERAGE_HUMIDITY
+	int8_t avearage_humidity_cel;
+	uint8_t avearage_humidity_fract;
+	int16_t smaples_of_humidity[No_OF_SAMPLES];
+#endif
 
 #if USE_STRING
-	char humi2str[6];		// humidity as string
+	char humi2str[7];		// humidity as string
 #endif
 
 } BME280;
