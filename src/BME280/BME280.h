@@ -16,9 +16,9 @@
 #include "../COMMON/common_var.h"
 
 // --------------------------------------------------------- //
-//select protocol
-#define BME280_SPI 0
-#define BME280_I2C 1
+//select communication protocol
+#define BME280_SPI 1
+#define BME280_I2C 0
 
 // --------------------------------------------------------- //
 #define USE_STRING 1				// allow for preparing of string with temperature and pressure values
@@ -105,10 +105,8 @@
 
 // --------------------------------------------------------- //
 typedef enum {T_lower_limit = 1, T_over_limit = 2, P_lower_limit = 3, P_over_limit = 4, H_lower_limit = 5, H_over_limit = 6 } ERR_BOUNDARIES;
-typedef enum {calib_reg = 1, config_reg = 2, both = 3}ERR_CONF;
-//typedef enum {im_update = 1, measuring= 2} STATUS;
-
-
+typedef enum {calib_reg = 1, config_reg = 2, both = 3} ERR_CONF;
+typedef enum {typical_time = 1, max_time = 2} MEASUREMENT_TIME;
 
 // --------------------------------------------------------- //
 typedef union {
@@ -159,7 +157,6 @@ typedef union {
 
 	};
 } TCOEF;
-
 
 
 typedef struct {
@@ -222,18 +219,7 @@ typedef struct {
 
 } BME280;
 
-extern BME280 bmp;
-
-
-
-
-
-
-
-
-
-
-
+extern BME280 bme;
 
 
 // --------------------------------------------------------- //

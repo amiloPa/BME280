@@ -8,28 +8,28 @@
 #include "BME280.h"
 
 
-BME280 bmp;
+BME280 bme;
 CONF conf_BME280;
 
-void check_boundaries (BME280 *bmp);			// check if read uncompensated values are in boundary MIN and MAX
-void soft_reset (void);						// execute sensor reset by software
-void get_status (BME280 *bmp);				// read statuses of sensor
-uint8_t bme280_compute_meas_time(void);		// measurement time in milliseconds for the active configuration
-void pressure_at_sea_level(BME280 *bmp);		// calculating pressure reduced to sea level
+void check_boundaries (BME280 *bme);																// check if read uncompensated values are in boundary MIN and MAX
+void soft_reset (void);																				// execute sensor reset by software
+void get_status (BME280 *bme);																		// read statuses of sensor
+uint8_t bme280_compute_measure_time(MEASUREMENT_TIME type, CONF *sensor);							// measurement time in milliseconds for the active configuration
+void pressure_at_sea_level(BME280 *bme);															// calculating pressure reduced to sea level
 
-void BME280_read_data(uint8_t SLA, uint8_t register_addr,  uint8_t size, uint8_t *Data);	// read data from sensor
-void BME280_write_data(uint8_t SLA, uint8_t register_addr, uint8_t size, uint8_t *Data);	// write data to sensor
-uint8_t read_compensation_parameter_write_configuration_and_check_it (CONF *sensor, BME280 *bmp);							// write configuration and check if saved configuration is equal to set
+void BME280_read_data(uint8_t SLA, uint8_t register_addr,  uint8_t size, uint8_t *Data);			// read data from sensor
+void BME280_write_data(uint8_t SLA, uint8_t register_addr, uint8_t size, uint8_t *Data);			// write data to sensor
+uint8_t read_compensation_parameter_write_configuration_and_check_it (CONF *sensor, BME280 *bme);	// write configuration and check if saved configuration is equal to set
 
 #if CALCULATION_AVERAGE_TEMP
-	void calculation_average_temp(BME280 *bmp);	// calculate average temperature, No of samples to calculations is taken from No_OF_SAMPLES
-	void calculation_average_humidity(BME280 *bmp);	// calculate average values of temperature or humidity, No of samples to calculations is taken from No_OF_SAMPLES
+	void calculation_average_temp(BME280 *bme);	// calculate average temperature, No of samples to calculations is taken from No_OF_SAMPLES
+	void calculation_average_humidity(BME280 *bme);	// calculate average values of temperature or humidity, No of samples to calculations is taken from No_OF_SAMPLES
 #endif
 
 /****************************************************************************/
 /*      setting function configurations of sensor					        */
 /****************************************************************************/
-uint8_t BME280_Conf (CONF *sensor, BME280 *bmp)
+uint8_t BME280_Conf (CONF *sensor, BME280 *bme)
 {
 	uint8_t counter = 0;
 	uint8_t  result_of_check = 5;
@@ -59,10 +59,11 @@ uint8_t BME280_Conf (CONF *sensor, BME280 *bmp)
 
 	do
 	{
-		result_of_check = read_compensation_parameter_write_configuration_and_check_it(sensor, bmp);
+		result_of_check = read_compensation_parameter_write_configuration_and_check_it(sensor, bme);
 		counter++;
 	}
 	while((result_of_check) && (counter < 3));
+
 
 	return result_of_check;	// if everything is OK return 0
 }
@@ -71,7 +72,7 @@ uint8_t BME280_Conf (CONF *sensor, BME280 *bmp)
 /****************************************************************************/
 /*      read, check, calculate and prepare string for measured values       */
 /****************************************************************************/
-uint8_t BME280_ReadTPH(BME280 *bmp)
+uint8_t BME280_ReadTPH(BME280 *bme)
 {
 	#if USE_STRING
 		uint8_t len;
@@ -91,61 +92,61 @@ uint8_t BME280_ReadTPH(BME280 *bmp)
 	t_fine  = 0;
 	divisor = 0;
 
-	bmp->adc_P = 0;
-	bmp->adc_T = 0;
-	bmp->adc_H = 0;
+	bme->adc_P = 0;
+	bme->adc_T = 0;
+	bme->adc_H = 0;
 
 	// ----- if occured some error during parameterization sensor don't do any measure -----
-	if(bmp->err_conf) return 1;
+	if(bme->err_conf) return 1;
 
 #if BME280_INCLUDE_STATUS
 	// ----- get status of sensor -----
-	get_status();
+	get_status(bme);
 
 	// ----- if sensor is in measuring or im_update status, wait up to the finishing and after that read measures -----
-	if( (bmp.measuring_staus)  || (bmp.im_update_staus)) return 2;
+	if( (bme->measuring_staus)  || (bme->im_update_staus)) return 2;
 
 #endif
 
 	BME280_read_data(BME280_ADDR, 0xF7, 8, (uint8_t *)&temp);	// read data register
 
-	bmp->adc_P = (temp[0] << 12) | (temp[1] << 4) | (temp[2] >> 4);
-	bmp->adc_T = (temp[3] << 12) | (temp[4] << 4) | (temp[5] >> 4);
-	bmp->adc_H = (temp[6] << 8)  |  temp[7];
+	bme->adc_P = (temp[0] << 12) | (temp[1] << 4) | (temp[2] >> 4);
+	bme->adc_T = (temp[3] << 12) | (temp[4] << 4) | (temp[5] >> 4);
+	bme->adc_H = (temp[6] << 8)  |  temp[7];
 
 
 	// ----- check boundaries -----
-	check_boundaries(bmp);
+	check_boundaries(bme);
 
 	// ----- if raw values are lower or over the limits, function is intermittent and returning 3  -----
-	if ((bmp->err_boundaries_T != 0) || ( bmp->err_boundaries_P != 0) || ( bmp->err_boundaries_H != 0)) return 3;
+	if ((bme->err_boundaries_T != 0) || ( bme->err_boundaries_P != 0) || ( bme->err_boundaries_H != 0)) return 3;
 
 	/*-----------------------------------------------------------------------*/
 	/********************* calculate temperature *****************************/
 	/*-----------------------------------------------------------------------*/
 
-    var1 = (int32_t)((bmp->adc_T / 8) - ((int32_t)bmp->coef.dig_T1 * 2));
-    var1 = (var1 * ((int32_t)bmp->coef.dig_T2)) / 2048;
-    var2 = (int32_t)((bmp->adc_T / 16) - ((int32_t)bmp->coef.dig_T1));
-    var2 = (((var2 * var2) / 4096) * ((int32_t)bmp->coef.dig_T3)) / 16384;
+    var1 = (int32_t)((bme->adc_T / 8) - ((int32_t)bme->coef.dig_T1 * 2));
+    var1 = (var1 * ((int32_t)bme->coef.dig_T2)) / 2048;
+    var2 = (int32_t)((bme->adc_T / 16) - ((int32_t)bme->coef.dig_T1));
+    var2 = (((var2 * var2) / 4096) * ((int32_t)bme->coef.dig_T3)) / 16384;
     t_fine = var1 + var2;
-    bmp->temperature = (t_fine * 5 + 128) / 256;
+    bme->temperature = (t_fine * 5 + 128) / 256;
 
-    if (bmp->temperature < temperature_min)
+    if (bme->temperature < temperature_min)
     {
-    	bmp->temperature = temperature_min;
+    	bme->temperature = temperature_min;
     }
-    else if (bmp->temperature > temperature_max)
+    else if (bme->temperature > temperature_max)
     {
-    	bmp->temperature = temperature_max;
+    	bme->temperature = temperature_max;
     }
 
-	if(my_abs(bmp->temperature) > 9) 	divisor = 100;
+	if(my_abs(bme->temperature) > 9) 	divisor = 100;
 	else 								divisor = 10;
 
 
-	bmp->t1 = (int32_t)bmp->temperature / (int8_t)divisor;
-	bmp->t2 = my_abs((uint32_t)bmp->temperature % (uint8_t)divisor);
+	bme->t1 = (int32_t)bme->temperature / (int8_t)divisor;
+	bme->t2 = my_abs((uint32_t)bme->temperature % (uint8_t)divisor);
 
 	// ----- prepare string with value of temperature -----
 #if USE_STRING
@@ -154,23 +155,23 @@ uint8_t BME280_ReadTPH(BME280 *bmp)
 
 
 		// ----- calculation of average temperature -----
-		calculation_average_temp(bmp);
+		calculation_average_temp(bme);
 
-		itoa(bmp->avearage_temp_cel, &bmp->temp2str[0], 10);
-		len = strlen(bmp->temp2str);
-		bmp->temp2str[len++] = ',';
+		itoa(bme->avearage_temp_cel, &bme->temp2str[0], 10);
+		len = strlen(bme->temp2str);
+		bme->temp2str[len++] = ',';
 
-		if( bmp->avearage_temp_fract < 10) bmp->temp2str[len++] = '0';
-		itoa(bmp->avearage_temp_fract, &bmp->temp2str[len++],10);
+		if( bme->avearage_temp_fract < 10) bme->temp2str[len++] = '0';
+		itoa(bme->avearage_temp_fract, &bme->temp2str[len++],10);
 
 	#else
 
-		itoa(bmp->t1, &bmp->temp2str[0], 10);
-		len = strlen(bmp->temp2str);
-		bmp->temp2str[len++] = ',';
+		itoa(bme->t1, &bme->temp2str[0], 10);
+		len = strlen(bme->temp2str);
+		bme->temp2str[len++] = ',';
 
-		if( bmp->t2 < 10) bmp->temp2str[len++] = '0';
-		itoa(bmp->t2, &bmp->temp2str[len++],10);
+		if( bme->t2 < 10) bme->temp2str[len++] = '0';
+		itoa(bme->t2, &bme->temp2str[len++],10);
 	#endif
 
 #endif
@@ -179,52 +180,52 @@ uint8_t BME280_ReadTPH(BME280 *bmp)
 	/********************* calculate pressure ********************************/
 	/*-----------------------------------------------------------------------*/
 
-	bmp->compensate_status = 0;
+	bme->compensate_status = 0;
 	var1 = 0;
 	var2 = 0;
 	p 	 = 0;
 
 	var1 = (((int32_t)t_fine) >> 1) - (int32_t)64000;
-	var2 = (((var1 >> 2) * (var1 >> 2)) >> 11 ) * ((int32_t)bmp->coef.dig_P6);
-	var2 = var2 + ((var1 * ((int32_t)bmp->coef.dig_P5)) << 1);
-	var2 = (var2 >> 2) + (((int32_t)bmp->coef.dig_P4) << 16);
-	var1 = (((bmp->coef.dig_P3 * (((var1 >> 2) * (var1 >> 2)) >> 13 )) >> 3) + ((((int32_t)bmp->coef.dig_P2) * var1) >> 1)) >> 18;
-	var1 =((((32768 + var1)) * ((int32_t)bmp->coef.dig_P1)) >> 15);
+	var2 = (((var1 >> 2) * (var1 >> 2)) >> 11 ) * ((int32_t)bme->coef.dig_P6);
+	var2 = var2 + ((var1 * ((int32_t)bme->coef.dig_P5)) << 1);
+	var2 = (var2 >> 2) + (((int32_t)bme->coef.dig_P4) << 16);
+	var1 = (((bme->coef.dig_P3 * (((var1 >> 2) * (var1 >> 2)) >> 13 )) >> 3) + ((((int32_t)bme->coef.dig_P2) * var1) >> 1)) >> 18;
+	var1 =((((32768 + var1)) * ((int32_t)bme->coef.dig_P1)) >> 15);
 
 	if (var1 == 0) //if dividing by 0, function is intermittent and returning 4
 	{
-		bmp->compensate_status = 1;
+		bme->compensate_status = 1;
 		return 4;
 	}
 
-	p = (((uint32_t)(((int32_t)1048576) - bmp->adc_P) - (var2 >> 12))) * 3125;
+	p = (((uint32_t)(((int32_t)1048576) - bme->adc_P) - (var2 >> 12))) * 3125;
 
 	if (p < 0x80000000) p = (p << 1) / ((uint32_t)var1);
 	else				p = (p / (uint32_t)var1) * 2;
 
 
-	var1 = (((int32_t)bmp->coef.dig_P9) * ((int32_t)(((p >> 3) * (p >> 3)) >> 13))) >> 12;
-	var2 = (((int32_t)(p >> 2)) * ((int32_t)bmp->coef.dig_P8)) >> 13;
-	p = (uint32_t)((int32_t)p + ((var1 + var2 + bmp->coef.dig_P7) >> 4));
+	var1 = (((int32_t)bme->coef.dig_P9) * ((int32_t)(((p >> 3) * (p >> 3)) >> 13))) >> 12;
+	var2 = (((int32_t)(p >> 2)) * ((int32_t)bme->coef.dig_P8)) >> 13;
+	p = (uint32_t)((int32_t)p + ((var1 + var2 + bme->coef.dig_P7) >> 4));
 
 
-	bmp->preasure = (uint32_t)p;
-	bmp->p1 =  (int32_t)bmp->preasure;
+	bme->preasure = (uint32_t)p;
+	bme->p1 =  (int32_t)bme->preasure;
 
 	// ----- prepare string with value of pressure -----
 #if USE_STRING
-	if ((bmp->p1/100) < 1000)
+	if ((bme->p1/100) < 1000)
 	{
-		bmp->pressure2str[0] = ' ';
-		itoa(bmp->p1/100, &bmp->pressure2str[1],10);
+		bme->pressure2str[0] = ' ';
+		itoa(bme->p1/100, &bme->pressure2str[1],10);
 	}
 	else
 	{
-		itoa(bmp->p1/100, &bmp->pressure2str[0],10);
+		itoa(bme->p1/100, &bme->pressure2str[0],10);
 	}
 
-	bmp->pressure2str[4] = ',';
-	itoa(bmp->p1%100, &bmp->pressure2str[5],10);
+	bme->pressure2str[4] = ',';
+	itoa(bme->p1%100, &bme->pressure2str[5],10);
 
 #endif
 
@@ -239,36 +240,36 @@ uint8_t BME280_ReadTPH(BME280 *bmp)
 	var5    = 0;
 
 	var1 = t_fine - ((int32_t)76800);
-	var2 = (int32_t)(bmp->adc_H * 16384);
-	var3 = (int32_t)(((int32_t)bmp->coef.dig_H4) * 1048576);
-	var4 = ((int32_t)bmp->coef.dig_H5) * var1;
+	var2 = (int32_t)(bme->adc_H * 16384);
+	var3 = (int32_t)(((int32_t)bme->coef.dig_H4) * 1048576);
+	var4 = ((int32_t)bme->coef.dig_H5) * var1;
 	var5 = (((var2 - var3) - var4) + (int32_t)16384) / 32768;
-	var2 = (var1 * ((int32_t)bmp->coef.dig_H6)) / 1024;
-	var3 = (var1 * ((int32_t)bmp->coef.dig_H3)) / 2048;
+	var2 = (var1 * ((int32_t)bme->coef.dig_H6)) / 1024;
+	var3 = (var1 * ((int32_t)bme->coef.dig_H3)) / 2048;
 	var4 = ((var2 * (var3 + (int32_t)32768)) / 1024) + (int32_t)2097152;
-	var2 = ((var4 * ((int32_t)bmp->coef.dig_H2)) + 8192) / 16384;
+	var2 = ((var4 * ((int32_t)bme->coef.dig_H2)) + 8192) / 16384;
 	var3 = var5 * var2;
 	var4 = ((var3 / 32768) * (var3 / 32768)) / 128;
-	var5 = var3 - ((var4 * ((int32_t)bmp->coef.dig_H1)) / 16);
+	var5 = var3 - ((var4 * ((int32_t)bme->coef.dig_H1)) / 16);
 	var5 = (var5 < 0 ? 0 : var5);
 	var5 = (var5 > 419430400 ? 419430400 : var5);
-	bmp->humidity = (uint32_t)(var5 / 4096);
+	bme->humidity = (uint32_t)(var5 / 4096);
 
-	if (bmp->humidity > humidity_max)
+	if (bme->humidity > humidity_max)
 	{
-		bmp->humidity = humidity_max;
+		bme->humidity = humidity_max;
 	}
 
-	bmp->humidity *= 100;
-	bmp->humidity /= 1024;
+	bme->humidity *= 100;
+	bme->humidity /= 1024;
 
 
-	if(my_abs(bmp->humidity/100) > 9) 	divisor = 100;
+	if(my_abs(bme->humidity/100) > 9) 	divisor = 100;
 	else 								divisor = 10;
 
 
-	bmp->h1 = (int32_t)bmp->humidity / (int8_t)divisor;
-	bmp->h2 = my_abs((uint32_t)bmp->humidity % (uint8_t)divisor);
+	bme->h1 = (int32_t)bme->humidity / (int8_t)divisor;
+	bme->h2 = my_abs((uint32_t)bme->humidity % (uint8_t)divisor);
 
 	// ----- prepare string with value of humidity -----
 #if USE_STRING
@@ -276,23 +277,23 @@ uint8_t BME280_ReadTPH(BME280 *bmp)
 	#if CALCULATION_AVERAGE_HUMIDITY
 
 		// ----- calculation of average humidity -----
-		calculation_average_humidity(bmp);
+		calculation_average_humidity(bme);
 
-		itoa(bmp->avearage_humidity_cel, &bmp->humi2str[0], 10);
-		len = strlen(bmp->humi2str);
-		bmp->humi2str[len++] = ',';
+		itoa(bme->avearage_humidity_cel, &bme->humi2str[0], 10);
+		len = strlen(bme->humi2str);
+		bme->humi2str[len++] = ',';
 
-		if( bmp->avearage_humidity_fract < 10) bmp->humi2str[len++] = '0';
-		itoa(bmp->avearage_humidity_fract, &bmp->humi2str[len++],10);
+		if( bme->avearage_humidity_fract < 10) bme->humi2str[len++] = '0';
+		itoa(bme->avearage_humidity_fract, &bme->humi2str[len++],10);
 
 	#else
 
-		itoa(bmp->h1, &bmp->humi2str[0], 10);
-		len = strlen(bmp->humi2str);
-		bmp->humi2str[len++] = ',';
+		itoa(bme->h1, &bme->humi2str[0], 10);
+		len = strlen(bme->humi2str);
+		bme->humi2str[len++] = ',';
 
-		if( bmp->h2 < 10) bmp->humi2str[len++] = '0';
-		itoa(bmp->h2, &bmp->humi2str[len++],10);
+		if( bme->h2 < 10) bme->humi2str[len++] = '0';
+		itoa(bme->h2, &bme->humi2str[len++],10);
 	#endif
 
 #endif
@@ -304,7 +305,7 @@ uint8_t BME280_ReadTPH(BME280 *bmp)
 	}
 
 	// ----- calculate a preasure sea level -----
-	pressure_at_sea_level(bmp);
+	pressure_at_sea_level(bme);
 
 	return 0;	// if everything is OK return 0
 }
@@ -312,71 +313,96 @@ uint8_t BME280_ReadTPH(BME280 *bmp)
 /****************************************************************************/
 /*      check if read uncompensated values are in boundary MIN and MAX      */
 /****************************************************************************/
-void check_boundaries (BME280 *bmp)
+void check_boundaries (BME280 *bme)
 {
-	bmp->err_boundaries_T = 0;
-	bmp->err_boundaries_P = 0;
-	bmp->err_boundaries_H = 0;
+	bme->err_boundaries_T = 0;
+	bme->err_boundaries_P = 0;
+	bme->err_boundaries_H = 0;
 
-	if 		(bmp->adc_T <= BME280_ST_ADC_MIN_T_P) bmp->err_boundaries_T = T_lower_limit;
-	else if (bmp->adc_T >= BME280_ST_ADC_MAX_T_P) bmp->err_boundaries_T = T_over_limit;
+	if 		(bme->adc_T <= BME280_ST_ADC_MIN_T_P) bme->err_boundaries_T = T_lower_limit;
+	else if (bme->adc_T >= BME280_ST_ADC_MAX_T_P) bme->err_boundaries_T = T_over_limit;
 
-	if 		(bmp->adc_P <= BME280_ST_ADC_MIN_T_P) bmp->err_boundaries_P = P_lower_limit;
-	else if (bmp->adc_P >= BME280_ST_ADC_MAX_T_P) bmp->err_boundaries_P = P_over_limit;
+	if 		(bme->adc_P <= BME280_ST_ADC_MIN_T_P) bme->err_boundaries_P = P_lower_limit;
+	else if (bme->adc_P >= BME280_ST_ADC_MAX_T_P) bme->err_boundaries_P = P_over_limit;
 
-	if      (bmp->adc_H <= BME280_ST_ADC_MIN_H)   bmp->err_boundaries_H = H_lower_limit;
-	else if (bmp->adc_H >= BME280_ST_ADC_MAX_H)   bmp->err_boundaries_H = H_over_limit;
+	if      (bme->adc_H <= BME280_ST_ADC_MIN_H)   bme->err_boundaries_H = H_lower_limit;
+	else if (bme->adc_H >= BME280_ST_ADC_MAX_H)   bme->err_boundaries_H = H_over_limit;
 
 }
 
 /****************************************************************************/
 /*      read statuses of sensor      										*/
 /****************************************************************************/
-void get_status (BME280 *bmp)
+void get_status (BME280 *bme)
 {
 	uint8_t *status = 0;
 
-	BMP280_read_data(BME280_ADDR, 0xF3, 1, status);	// read set register
+	BME280_read_data(BME280_ADDR, 0xF3, 1, status);	// read set register
 
-	bmp->measuring_staus =  *status & BMP280_MEASURING_STATUS;
-	bmp->im_update_staus =  *status & BMP280_IM_UPDATE_STATUS;
+
+	bme->measuring_staus =  *status & BMP280_MEASURING_STATUS;
+	bme->im_update_staus =  *status & BMP280_IM_UPDATE_STATUS;
 }
 
 /****************************************************************************/
 /*      measurement time in milliseconds for the active configuration       */
 /****************************************************************************/
-uint8_t bmp280_compute_meas_time(void)
+uint8_t bme280_compute_measure_time(MEASUREMENT_TIME type, CONF *sensor)
 {
-    uint32_t period = 0;
-    uint32_t t_dur = 0, p_dur = 0, p_startup = 0;
-    const uint32_t startup = 1000, period_per_osrs = 2000; // Typical timings in us. Maximum is +15% each
 
-        t_dur = period_per_osrs * ((UINT32_C(1) << conf_BMP280.osrs_t) >> 1);
-        p_dur = period_per_osrs * ((UINT32_C(1) << conf_BMP280.osrs_p) >> 1);
-        p_startup = (conf_BMP280.osrs_p) ? 500 : 0;
+	uint32_t t_dur = 0, p_dur = 0, h_dur = 0, mesas_time = 0;
 
-        period = startup + t_dur + p_startup + p_dur + 500; // Increment the value to next highest integer if greater than 0.5
-        period /= 1000; 									// Convert to milliseconds
+	if (type == typical_time)
+	{
+		if( sensor->osrs_t != BME280_SKIPPED) t_dur = 2000 * (uint8_t)sensor->osrs_t;
+		else 								  t_dur = 0;
+
+		if( sensor->osrs_p != BME280_SKIPPED) p_dur = 2000 * (uint8_t)sensor->osrs_p + 500;
+		else 								  p_dur = 0;
+
+		if( sensor->osrs_h != BME280_SKIPPED) h_dur = 2000 * (uint8_t)sensor->osrs_h + 500;
+		else 								  h_dur = 0;
+
+		mesas_time = 1000 + t_dur + p_dur + h_dur;
+	}
 
 
-    return (uint8_t)period;
+	if (type == max_time)
+	{
+		if( sensor->osrs_t != BME280_SKIPPED) t_dur = 2300 * (uint8_t)sensor->osrs_t;
+		else 								  t_dur = 0;
+
+		if( sensor->osrs_p != BME280_SKIPPED) p_dur = 2300 * (uint8_t)sensor->osrs_p + 575;
+		else 								  p_dur = 0;
+
+		if( sensor->osrs_h != BME280_SKIPPED) h_dur = 2300 * (uint8_t)sensor->osrs_h + 575;
+		else 								  h_dur = 0;
+
+		mesas_time = 1250 * 1 + t_dur + p_dur + h_dur;
+
+	}
+
+	mesas_time += 500;	// Increment the value to next highest integer if greater than 0.5
+	mesas_time /= 1000;	// Convert to milliseconds
+
+    return mesas_time;
 }
 
 /****************************************************************************/
 /*      calculating pressure reduced to sea level            				*/
 /****************************************************************************/
-void pressure_at_sea_level(BME280 *bmp){
+void pressure_at_sea_level(BME280 *bme){
 
         uint16_t st_baryczny,tpm,t_sr;
         uint32_t p0,p_sr;
 
-        st_baryczny = (800000 * (1000 + 4 * bmp->temperature) / (bmp->preasure));          		// calculation of the baric degree acc. to the pattern of the Babineta
-        p0 = bmp->preasure + (100000 * BME280_ALTITUDE / (st_baryczny));              			// calculation of approximate sea level pressure
-        p_sr = (bmp->preasure + p0) / 2;                     									// calculation of average pressure for layers between sea level and sensor
-        tpm = bmp->temperature + ((6 * BME280_ALTITUDE) / 1000);                           		// calculation of average temperature for layer of air
-        t_sr = (bmp->temperature + tpm) / 2;                                              		// calculation of average temperature for layer between sea level and sensor
+        st_baryczny = (800000 * (1000 + 4 * bme->temperature) / (bme->preasure));          		// calculation of the baric degree acc. to the pattern of the Babineta
+        p0 = bme->preasure + (100000 * BME280_ALTITUDE / (st_baryczny));              			// calculation of approximate sea level pressure
+        p_sr = (bme->preasure + p0) / 2;                     									// calculation of average pressure for layers between sea level and sensor
+        tpm = bme->temperature + ((6 * BME280_ALTITUDE) / 1000);                           		// calculation of average temperature for layer of air
+        t_sr = (bme->temperature + tpm) / 2;                                              		// calculation of average temperature for layer between sea level and sensor
         st_baryczny = (800000 * (1000 + 4 * t_sr) / (p_sr));              						// calculation of more accurate value of baric degree
-        bmp->sea_pressure_redu = bmp->preasure + (100000 * BME280_ALTITUDE / (st_baryczny)); 	// calculation of more accurate value of pressure for sea level
+        bme->sea_pressure_redu = bme->preasure + (100000 * BME280_ALTITUDE / (st_baryczny)); 	// calculation of more accurate value of pressure for sea level
 }
 
 /****************************************************************************/
@@ -503,7 +529,7 @@ void soft_reset (void)
 /****************************************************************************/
 /*     write configuration and check if saved configuration is equal to set */
 /****************************************************************************/
-uint8_t read_compensation_parameter_write_configuration_and_check_it (CONF *sensor, BME280 *bmp)
+uint8_t read_compensation_parameter_write_configuration_and_check_it (CONF *sensor, BME280 *bme)
 {
 	uint8_t buf[3];
 	uint8_t i;
@@ -514,16 +540,16 @@ uint8_t read_compensation_parameter_write_configuration_and_check_it (CONF *sens
 	BME280_write_data(BME280_ADDR, 0xF4,  2, &sensor->bt[1]);		// write configurations bytes
 	BME280_read_data(BME280_ADDR,  0xF2,  1, &buf[0]);				// read set registers
 	BME280_read_data(BME280_ADDR,  0xF4,  2, &buf[1]);				// read set registers
-	BME280_read_data(BME280_ADDR,  0x88, 24, bmp->coef.bt);			// read compensation parameters: 0x88 -> 0x9F
-	BME280_read_data(BME280_ADDR,  0xA1,  1, &bmp->coef.bt[24]);	// read compensation parameters: 0xA1
+	BME280_read_data(BME280_ADDR,  0x88, 24, bme->coef.bt);			// read compensation parameters: 0x88 -> 0x9F
+	BME280_read_data(BME280_ADDR,  0xA1,  1, &bme->coef.bt[24]);	// read compensation parameters: 0xA1
 
 	BME280_read_data(BME280_ADDR,  0xE1,  7, &temp_humidity[0]);	// read compensation parameters: 0xE1 -> 0xE2
 
-	bmp->coef.dig_H2 = ((uint16_t)temp_humidity[1] << 8 ) | (uint16_t)temp_humidity[0];
-	bmp->coef.dig_H3 = temp_humidity[2];
-	bmp->coef.dig_H4 = ((uint16_t)temp_humidity[3] << 4) | ((uint16_t)temp_humidity[4] & 0x0F);
-	bmp->coef.dig_H5 = ((uint16_t)temp_humidity[5] << 4) | ((uint16_t)temp_humidity[4] >> 4);
-	bmp->coef.dig_H6 = temp_humidity[6];
+	bme->coef.dig_H2 = ((uint16_t)temp_humidity[1] << 8 ) | (uint16_t)temp_humidity[0];
+	bme->coef.dig_H3 = temp_humidity[2];
+	bme->coef.dig_H4 = ((uint16_t)temp_humidity[3] << 4) | ((uint16_t)temp_humidity[4] & 0x0F);
+	bme->coef.dig_H5 = ((uint16_t)temp_humidity[5] << 4) | ((uint16_t)temp_humidity[4] >> 4);
+	bme->coef.dig_H6 = temp_humidity[6];
 
 
 	// ----- check if set configuration registers are that same as readed -----
@@ -543,7 +569,7 @@ uint8_t read_compensation_parameter_write_configuration_and_check_it (CONF *sens
 
 			if(buf[i] != bt_temp[i])
 			{
-				if(bmp->err_conf == calib_reg) 	bmp->err_conf = both;
+				if(bme->err_conf == calib_reg) 	bme->err_conf = both;
 				else
 				return 2;
 			}
@@ -555,8 +581,8 @@ uint8_t read_compensation_parameter_write_configuration_and_check_it (CONF *sens
 		{
 			if(buf[i] != sensor->bt[i])
 			{
-				if(bmp->err_conf == calib_reg) 	bmp->err_conf = both;
-				else 							bmp->err_conf = config_reg;
+				if(bme->err_conf == calib_reg) 	bme->err_conf = both;
+				else 							bme->err_conf = config_reg;
 				return 2;
 			}
 		}
@@ -567,9 +593,9 @@ uint8_t read_compensation_parameter_write_configuration_and_check_it (CONF *sens
 	// ----- coefficients of humidity can contain 0 value so that aren't checked -----
 	for( i = 0; i < (SIZE_OF_PT_UNION/2); i++)
 	{
-		if(bmp->coef.bt2[i] == 0)
+		if(bme->coef.bt2[i] == 0)
 		{
-			bmp->err_conf = calib_reg;
+			bme->err_conf = calib_reg;
 			return 1;
 		}
 	}
@@ -583,7 +609,7 @@ uint8_t read_compensation_parameter_write_configuration_and_check_it (CONF *sens
 /* 	   No of samples to calculations is taken from No_OF_SAMPLES 			*/
 /****************************************************************************/
 #if CALCULATION_AVERAGE_TEMP
-	void calculation_average_temp(BME280 *bmp)
+	void calculation_average_temp(BME280 *bme)
 	{
 		int32_t avearage_temp_value = 0;
 		static uint8_t i = 1;
@@ -592,30 +618,30 @@ uint8_t read_compensation_parameter_write_configuration_and_check_it (CONF *sens
 
 		if(i <= No_OF_SAMPLES)
 		{
-			if(bmp->t1 >= 0) bmp->smaples_of_temp[i-1] = 100 * bmp->t1 + bmp->t2;
-			else 			 bmp->smaples_of_temp[i-1] = -1 * (100 * my_abs(bmp->t1) + bmp->t2);
+			if(bme->t1 >= 0) bme->smaples_of_temp[i-1] = 100 * bme->t1 + bme->t2;
+			else 			 bme->smaples_of_temp[i-1] = -1 * (100 * my_abs(bme->t1) + bme->t2);
 		}
 		else
 		{
 			for (k = 1; k < i - 1; k++)
 			{
-				bmp->smaples_of_temp[k-1] = bmp->smaples_of_temp[k];
+				bme->smaples_of_temp[k-1] = bme->smaples_of_temp[k];
 			}
 
-			if(bmp->t1 >= 0) bmp->smaples_of_temp[--k] = 100 * bmp->t1 + bmp->t2;
-			else 			 bmp->smaples_of_temp[--k] = -1 * (100 * my_abs(bmp->t1) + bmp->t2);
+			if(bme->t1 >= 0) bme->smaples_of_temp[--k] = 100 * bme->t1 + bme->t2;
+			else 			 bme->smaples_of_temp[--k] = -1 * (100 * my_abs(bme->t1) + bme->t2);
 		}
 
 		for (k = 0; k < i - 1; k++)
 		{
-			avearage_temp_value += bmp->smaples_of_temp[k];
+			avearage_temp_value += bme->smaples_of_temp[k];
 		}
 
 		avearage_temp_value /= (i - 1);
 
-		bmp->avearage_temp_cel = avearage_temp_value / 100 ;
+		bme->avearage_temp_cel = avearage_temp_value / 100 ;
 		avearage_fract_temp = (my_abs(avearage_temp_value)) % 100;
-		bmp->avearage_temp_fract = avearage_fract_temp;
+		bme->avearage_temp_fract = avearage_fract_temp;
 
 		if( i <= No_OF_SAMPLES) i++;
 	}
@@ -626,7 +652,7 @@ uint8_t read_compensation_parameter_write_configuration_and_check_it (CONF *sens
 	/* 	   No of samples to calculations is taken from No_OF_SAMPLES 			*/
 	/****************************************************************************/
 	#if CALCULATION_AVERAGE_HUMIDITY
-		void calculation_average_humidity(BME280 *bmp)
+		void calculation_average_humidity(BME280 *bme)
 		{
 			uint32_t avearage_humidity_value = 0;
 			static uint8_t i = 1;
@@ -635,29 +661,29 @@ uint8_t read_compensation_parameter_write_configuration_and_check_it (CONF *sens
 
 			if(i <= No_OF_SAMPLES)
 			{
-				bmp->smaples_of_humidity[i-1] = 100 * bmp->h1 + bmp->h2;
+				bme->smaples_of_humidity[i-1] = 100 * bme->h1 + bme->h2;
 
 			}
 			else
 			{
 				for (k = 1; k < i - 1; k++)
 				{
-					bmp->smaples_of_humidity[k-1] = bmp->smaples_of_humidity[k];
+					bme->smaples_of_humidity[k-1] = bme->smaples_of_humidity[k];
 				}
 
-				bmp->smaples_of_humidity[--k] = 100 * bmp->h1 + bmp->h2;
+				bme->smaples_of_humidity[--k] = 100 * bme->h1 + bme->h2;
 			}
 
 			for (k = 0; k < i - 1; k++)
 			{
-				avearage_humidity_value += bmp->smaples_of_humidity[k];
+				avearage_humidity_value += bme->smaples_of_humidity[k];
 			}
 
 			avearage_humidity_value /= (i - 1);
 
-			bmp->avearage_humidity_cel = avearage_humidity_value / 100 ;
+			bme->avearage_humidity_cel = avearage_humidity_value / 100 ;
 			avearage_fract_humidity = (my_abs(avearage_humidity_value)) % 100;
-			bmp->avearage_humidity_fract = avearage_fract_humidity;
+			bme->avearage_humidity_fract = avearage_fract_humidity;
 
 			if( i <= No_OF_SAMPLES) i++;
 		}

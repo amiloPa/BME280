@@ -30,11 +30,15 @@ void SysTick_Conf(void);
 
 uint32_t allow_for_measure = 0;
 volatile uint8_t flag = 1;
+uint32_t start_measure = 0;
+uint16_t result_time = 0;
+char measure_time[15];
 
 int main(void)
 {
 
 	uint8_t result_BME_conf;
+	uint8_t result;
 
 	RCC_Conf();
 	SysTick_Conf();
@@ -52,7 +56,7 @@ int main(void)
 
 	do
 	{
-		result_BME_conf = BME280_Conf(&conf_BME280, &bmp);
+		result_BME_conf = BME280_Conf(&conf_BME280, &bme);
 	}
 	while(result_BME_conf == 3);
 
@@ -61,7 +65,73 @@ int main(void)
 		if(flag)
 		{
 			flag = 0;
-			BME280_ReadTPH(&bmp);
+
+			if(result_BME_conf)
+			{
+				uart_puts("Sensor configuration error:");
+				if(bme.err_conf == calib_reg)  uart_puts(" calibration coefficients includes zero value,");
+				if(bme.err_conf == config_reg) uart_puts(" configuration registers error,");
+				if(bme.err_conf == both) uart_puts(" calibration coefficients includes zero value and configuration registers error,");
+				uart_puts("\n\r");
+			}
+			else
+			{
+				start_measure = source_time;
+				result = BME280_ReadTPH(&bme);
+
+				switch(result)
+				{
+				case 1:
+					uart_puts("Sensor error. Initialization phase didn't go properly.");
+					uart_puts("\n\r");
+					flag = 0;
+					break;
+
+				case 2:
+					break;
+
+				case 3:
+					switch(bme.err_boundaries_T)
+					{
+					case T_lower_limit:
+						uart_puts(" Measured raw value of temperature is lower than minimum value (0x00000),");
+						break;
+					case T_over_limit:
+						uart_puts(" Measured raw value of temperature is over than maximum value (0x800000),");
+						break;
+					}
+
+					switch(bme.err_boundaries_T)
+					{
+					case P_lower_limit:
+						uart_puts(" Measured raw value of pressure is lower than minimum value (0x00000),");
+						break;
+					case P_over_limit:
+						uart_puts(" Measured raw value of pressure is over than maximum value (0x800000),");
+						break;
+					}
+					break;
+				case 4:
+					uart_puts(" Try to divide by 0 (measuring is intermittent.)");
+					break;
+
+				default:
+					result_time = source_time - start_measure;
+
+					uart_puts(bme.temp2str);
+					uart_puts("  ");
+					uart_puts(bme.pressure2str);
+					uart_puts("  ");
+					uart_puts(bme.humi2str);
+
+					uart_puts("  ");
+					itoa(result_time, measure_time,10);
+					uart_puts("measure take = ");
+					uart_puts(measure_time);
+					uart_puts("ms");
+					uart_puts("\n\r");
+				}
+			}
 
 		}
 	}
@@ -181,6 +251,4 @@ __attribute__((interrupt)) void SysTick_Handler(void)
 		GPIO_SetBits(GPIOC, GPIO_Pin_13);;
 		status = 0;
 	}
-
-
 }
