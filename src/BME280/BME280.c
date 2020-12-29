@@ -19,7 +19,7 @@ void pressure_at_sea_level(BME280 *bmp);		// calculating pressure reduced to sea
 
 void BME280_read_data(uint8_t SLA, uint8_t register_addr,  uint8_t size, uint8_t *Data);	// read data from sensor
 void BME280_write_data(uint8_t SLA, uint8_t register_addr, uint8_t size, uint8_t *Data);	// write data to sensor
-uint8_t write_configuration_and_check_it (CONF *sensor, BME280 *bmp);							// write configuration and check if saved configuration is equal to set
+uint8_t read_compensation_parameter_write_configuration_and_check_it (CONF *sensor, BME280 *bmp);							// write configuration and check if saved configuration is equal to set
 
 #if CALCULATION_AVERAGE_TEMP
 	void calculation_average_temp(BME280 *bmp);	// calculate average temperature, No of samples to calculations is taken from No_OF_SAMPLES
@@ -59,7 +59,7 @@ uint8_t BME280_Conf (CONF *sensor, BME280 *bmp)
 
 	do
 	{
-		result_of_check = write_configuration_and_check_it(sensor, bmp);
+		result_of_check = read_compensation_parameter_write_configuration_and_check_it(sensor, bmp);
 		counter++;
 	}
 	while((result_of_check) && (counter < 3));
@@ -300,7 +300,7 @@ uint8_t BME280_ReadTPH(BME280 *bmp)
 	// ----- measure and prepare values for the next reading -----
 	if(conf_BME280.mode == BME280_FORCEDMODE)
 	{
-		BME280_write_data(BME280_ADDR, 0xF4, 1, conf_BME280.bt);		// write configurations bytes
+		BME280_write_data(BME280_ADDR, 0xF4, 1, &conf_BME280.bt[1]);		// write configurations bytes
 	}
 
 	// ----- calculate a preasure sea level -----
@@ -318,9 +318,14 @@ void check_boundaries (BME280 *bmp)
 	bmp->err_boundaries_P = 0;
 	bmp->err_boundaries_H = 0;
 
-	if (bmp->adc_T == BME280_ST_ADC_MAX_T_P) bmp->err_boundaries_T = Over_limit;
-	if (bmp->adc_P == BME280_ST_ADC_MAX_T_P) bmp->err_boundaries_P = Over_limit;
-	if (bmp->adc_H == BME280_ST_ADC_MAX_H)   bmp->err_boundaries_H = Over_limit;
+	if 		(bmp->adc_T <= BME280_ST_ADC_MIN_T_P) bmp->err_boundaries_T = T_lower_limit;
+	else if (bmp->adc_T >= BME280_ST_ADC_MAX_T_P) bmp->err_boundaries_T = T_over_limit;
+
+	if 		(bmp->adc_P <= BME280_ST_ADC_MIN_T_P) bmp->err_boundaries_P = P_lower_limit;
+	else if (bmp->adc_P >= BME280_ST_ADC_MAX_T_P) bmp->err_boundaries_P = P_over_limit;
+
+	if      (bmp->adc_H <= BME280_ST_ADC_MIN_H)   bmp->err_boundaries_H = H_lower_limit;
+	else if (bmp->adc_H >= BME280_ST_ADC_MAX_H)   bmp->err_boundaries_H = H_over_limit;
 
 }
 
@@ -335,6 +340,43 @@ void get_status (BME280 *bmp)
 
 	bmp->measuring_staus =  *status & BMP280_MEASURING_STATUS;
 	bmp->im_update_staus =  *status & BMP280_IM_UPDATE_STATUS;
+}
+
+/****************************************************************************/
+/*      measurement time in milliseconds for the active configuration       */
+/****************************************************************************/
+uint8_t bmp280_compute_meas_time(void)
+{
+    uint32_t period = 0;
+    uint32_t t_dur = 0, p_dur = 0, p_startup = 0;
+    const uint32_t startup = 1000, period_per_osrs = 2000; // Typical timings in us. Maximum is +15% each
+
+        t_dur = period_per_osrs * ((UINT32_C(1) << conf_BMP280.osrs_t) >> 1);
+        p_dur = period_per_osrs * ((UINT32_C(1) << conf_BMP280.osrs_p) >> 1);
+        p_startup = (conf_BMP280.osrs_p) ? 500 : 0;
+
+        period = startup + t_dur + p_startup + p_dur + 500; // Increment the value to next highest integer if greater than 0.5
+        period /= 1000; 									// Convert to milliseconds
+
+
+    return (uint8_t)period;
+}
+
+/****************************************************************************/
+/*      calculating pressure reduced to sea level            				*/
+/****************************************************************************/
+void pressure_at_sea_level(BME280 *bmp){
+
+        uint16_t st_baryczny,tpm,t_sr;
+        uint32_t p0,p_sr;
+
+        st_baryczny = (800000 * (1000 + 4 * bmp->temperature) / (bmp->preasure));          		// calculation of the baric degree acc. to the pattern of the Babineta
+        p0 = bmp->preasure + (100000 * BME280_ALTITUDE / (st_baryczny));              			// calculation of approximate sea level pressure
+        p_sr = (bmp->preasure + p0) / 2;                     									// calculation of average pressure for layers between sea level and sensor
+        tpm = bmp->temperature + ((6 * BME280_ALTITUDE) / 1000);                           		// calculation of average temperature for layer of air
+        t_sr = (bmp->temperature + tpm) / 2;                                              		// calculation of average temperature for layer between sea level and sensor
+        st_baryczny = (800000 * (1000 + 4 * t_sr) / (p_sr));              						// calculation of more accurate value of baric degree
+        bmp->sea_pressure_redu = bmp->preasure + (100000 * BME280_ALTITUDE / (st_baryczny)); 	// calculation of more accurate value of pressure for sea level
 }
 
 /****************************************************************************/
@@ -461,7 +503,7 @@ void soft_reset (void)
 /****************************************************************************/
 /*     write configuration and check if saved configuration is equal to set */
 /****************************************************************************/
-uint8_t write_configuration_and_check_it (CONF *sensor, BME280 *bmp)
+uint8_t read_compensation_parameter_write_configuration_and_check_it (CONF *sensor, BME280 *bmp)
 {
 	uint8_t buf[3];
 	uint8_t i;
@@ -477,28 +519,12 @@ uint8_t write_configuration_and_check_it (CONF *sensor, BME280 *bmp)
 
 	BME280_read_data(BME280_ADDR,  0xE1,  7, &temp_humidity[0]);	// read compensation parameters: 0xE1 -> 0xE2
 
-//	BME280_read_data(BME280_ADDR,  0xE1,  2, &bmp->coef.bt[25]);	// read compensation parameters: 0xE1 -> 0xE2
-//	BME280_read_data(BME280_ADDR,  0xE3,  1, &bmp->coef.bt[27]);	// read compensation parameters: 0xE3
-//	BME280_read_data(BME280_ADDR,  0xE4,  5, &bmp->coef.bt[28]);	// read compensation parameters: 0xE4 -> 0xE8
-
-
 	bmp->coef.dig_H2 = ((uint16_t)temp_humidity[1] << 8 ) | (uint16_t)temp_humidity[0];
 	bmp->coef.dig_H3 = temp_humidity[2];
 	bmp->coef.dig_H4 = ((uint16_t)temp_humidity[3] << 4) | ((uint16_t)temp_humidity[4] & 0x0F);
 	bmp->coef.dig_H5 = ((uint16_t)temp_humidity[5] << 4) | ((uint16_t)temp_humidity[4] >> 4);
 	bmp->coef.dig_H6 = temp_humidity[6];
 
-
-	// ----- check if pressure and temperature calibration coefficients are diferent from 0 -----
-	// ----- coefficients of humidity can contain 0 value so that aren't checked -----
-	for( i = 0; i < (SIZE_OF_PT_UNION/2); i++)
-	{
-		if(bmp->coef.bt2[i] == 0)
-		{
-			bmp->err_conf = calib_reg;
-			return 1;
-		}
-	}
 
 	// ----- check if set configuration registers are that same as readed -----
 	if(sensor->mode == BME280_FORCEDMODE)   /* sometimes hapend, that sensor go to sleep mode after single measurement was finished
@@ -536,6 +562,19 @@ uint8_t write_configuration_and_check_it (CONF *sensor, BME280 *bmp)
 		}
 	}
 
+
+	// ----- check if pressure and temperature calibration coefficients are diferent from 0 -----
+	// ----- coefficients of humidity can contain 0 value so that aren't checked -----
+	for( i = 0; i < (SIZE_OF_PT_UNION/2); i++)
+	{
+		if(bmp->coef.bt2[i] == 0)
+		{
+			bmp->err_conf = calib_reg;
+			return 1;
+		}
+	}
+
+
 	return 0;
 }
 
@@ -546,7 +585,7 @@ uint8_t write_configuration_and_check_it (CONF *sensor, BME280 *bmp)
 #if CALCULATION_AVERAGE_TEMP
 	void calculation_average_temp(BME280 *bmp)
 	{
-		int16_t avearage_temp_value = 0;
+		int32_t avearage_temp_value = 0;
 		static uint8_t i = 1;
 		uint8_t k;
 		uint8_t avearage_fract_temp;
@@ -589,15 +628,15 @@ uint8_t write_configuration_and_check_it (CONF *sensor, BME280 *bmp)
 	#if CALCULATION_AVERAGE_HUMIDITY
 		void calculation_average_humidity(BME280 *bmp)
 		{
-			int16_t avearage_humidity_value = 0;
+			uint32_t avearage_humidity_value = 0;
 			static uint8_t i = 1;
 			uint8_t k;
 			uint8_t avearage_fract_humidity;
 
 			if(i <= No_OF_SAMPLES)
 			{
-				if(bmp->h1 >= 0) bmp->smaples_of_humidity[i-1] = 100 * bmp->h1 + bmp->h2;
-				else 			 bmp->smaples_of_humidity[i-1] = -1 * (100 * my_abs(bmp->h1) + bmp->h2);
+				bmp->smaples_of_humidity[i-1] = 100 * bmp->h1 + bmp->h2;
+
 			}
 			else
 			{
@@ -606,8 +645,7 @@ uint8_t write_configuration_and_check_it (CONF *sensor, BME280 *bmp)
 					bmp->smaples_of_humidity[k-1] = bmp->smaples_of_humidity[k];
 				}
 
-				if(bmp->h1 >= 0) bmp->smaples_of_humidity[--k] = 100 * bmp->h1 + bmp->h2;
-				else 			 bmp->smaples_of_humidity[--k] = -1 * (100 * my_abs(bmp->h1) + bmp->h2);
+				bmp->smaples_of_humidity[--k] = 100 * bmp->h1 + bmp->h2;
 			}
 
 			for (k = 0; k < i - 1; k++)
@@ -625,19 +663,4 @@ uint8_t write_configuration_and_check_it (CONF *sensor, BME280 *bmp)
 		}
 	#endif
 
-	/****************************************************************************/
-	/*      calculating pressure reduced to sea level            				*/
-	/****************************************************************************/
-	void pressure_at_sea_level(BME280 *bmp){
 
-	        uint16_t st_baryczny,tpm,t_sr;
-	        uint32_t p0,p_sr;
-
-	        st_baryczny = (800000 * (1000 + 4 * bmp->temperature) / (bmp->preasure));          		// calculation of the baric degree acc. to the pattern of the Babineta
-	        p0 = bmp->preasure + (100000 * BME280_ALTITUDE / (st_baryczny));              			// calculation of approximate sea level pressure
-	        p_sr = (bmp->preasure + p0) / 2;                     									// calculation of average pressure for layers between sea level and sensor
-	        tpm = bmp->temperature + ((6 * BME280_ALTITUDE) / 1000);                           		// calculation of average temperature for layer of air
-	        t_sr = (bmp->temperature + tpm) / 2;                                              		// calculation of average temperature for layer between sea level and sensor
-	        st_baryczny = (800000 * (1000 + 4 * t_sr) / (p_sr));              						// calculation of more accurate value of baric degree
-	        bmp->sea_pressure_redu = bmp->preasure + (100000 * BME280_ALTITUDE / (st_baryczny)); 	// calculation of more accurate value of pressure for sea level
-	}

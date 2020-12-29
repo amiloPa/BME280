@@ -69,12 +69,14 @@
 // --------------------------------------------------------- //
 //soft reset ->  reset[7:0] ->	If the value 0x60 is written to the register,
 //								the device is reset using the complete power-on-reset procedure
-#define BME280_SOFTWARE_RESET 0x60
+#define BME280_SOFTWARE_RESET 0xB6
 
 // --------------------------------------------------------- //
 // definisions of maximum rav values for temperature and pressure and humidity
-#define BME280_ST_ADC_MAX_T_P (int32_t)0x80000
+#define BME280_ST_ADC_MAX_T_P (int32_t)0x800000
+#define BME280_ST_ADC_MIN_T_P (int32_t)0x000000
 #define BME280_ST_ADC_MAX_H    (int32_t)0x8000
+#define BME280_ST_ADC_MIN_H    (int32_t)0x0000
 
 
 // --------------------------------------------------------- //
@@ -102,7 +104,7 @@
 
 
 // --------------------------------------------------------- //
-typedef enum {Over_limit = 1} ERR_BOUNDARIES;
+typedef enum {T_lower_limit = 1, T_over_limit = 2, P_lower_limit = 3, P_over_limit = 4, H_lower_limit = 5, H_over_limit = 6 } ERR_BOUNDARIES;
 typedef enum {calib_reg = 1, config_reg = 2, both = 3}ERR_CONF;
 //typedef enum {im_update = 1, measuring= 2} STATUS;
 
