@@ -1,3 +1,4 @@
+# BME280
 This repository consist of library for handling BME280 sensor. It is prepared by suing blue pill (STM32F103C8T6 microprocesor) Library features:
 
 * setting configurations of sensor and checking if saved configuration is equal to set,
