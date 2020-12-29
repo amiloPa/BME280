@@ -119,10 +119,13 @@ int main(void)
 					result_time = source_time - start_measure;
 
 					uart_puts(bme.temp2str);
+					uart_puts("C");
 					uart_puts("  ");
 					uart_puts(bme.pressure2str);
+					uart_puts("hPa");
 					uart_puts("  ");
 					uart_puts(bme.humi2str);
+					uart_puts("%");
 
 					uart_puts("  ");
 					itoa(result_time, measure_time,10);
